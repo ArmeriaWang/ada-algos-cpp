@@ -9,7 +9,7 @@
 
 using namespace std;
 
-const int N = 1000000 + 5;
+const int N = 100 + 5;
 const double eps = 1e-12;
 
 #define X_AXIS 0
@@ -26,12 +26,16 @@ struct Point {
 
     Point(double x, double y) : x(x), y(y) {}
 
-    bool operator <(const Point &A) const {
-        return equals(x, A.x) ? y < A.y : x < A.x;
+    bool operator <(const Point &a) const {
+        return equals(x, a.x) ? y < a.y : x < a.x;
     }
 
-    bool operator ==(const Point &A) {
-        return equals(x, A.x) && fsign(y - A.y) == 0;
+    bool operator ==(const Point &a) {
+        return equals(x, a.x) && equals(y, a.y);
+    }
+
+    bool operator !=(const Point &a) {
+        return !equals(x, a.x) || !equals(y, a.y);
     }
 
 } points[N];
@@ -99,14 +103,14 @@ double angle(Vector a, Vector b) {
 double getPerpendicularBisectorIntersection(Point a, Point b, int ParallelTo, double p) {
     Vector n0 = normal(a - b);
     if (ParallelTo == X_AXIS) {
-        return getLineIntersection(Point(0, p), Vector(1, 0), (a + b) / 2, n0).x;
+        return getLineIntersection(Point(0, p), Vector(1, 0), (a + b) / 2.0, n0).x;
     }
     else {  // ParallelTo == Y_AXIS
-        return getLineIntersection(Point(p, 0), Vector(0, 1), (a + b) / 2, n0).x;
+        return getLineIntersection(Point(p, 0), Vector(0, 1), (a + b) / 2.0, n0).x;
     }
 }
 
-void partition(pair<double, pair<Point, Point>> pairs[], int xMid, int &i, int &j, int n) {
+void partition(pair<double, pair<int, int>> pairs[], double xMid, int &i, int &j, int n) {
     i = 0;
     j = n - 1;
     while (i <= j) {
@@ -120,7 +124,7 @@ void partition(pair<double, pair<Point, Point>> pairs[], int xMid, int &i, int &
     }
 }
 
-double getKthSplit(pair<double, pair<Point, Point>> pairs[], int n, int k) {
+double getKthSplit(pair<double, pair<int, int>> pairs[], int n, int k) {
     static const int c = 5;
 
     if (n < c) {
@@ -135,18 +139,16 @@ double getKthSplit(pair<double, pair<Point, Point>> pairs[], int n, int k) {
     }
 
     double xMid = getKthSplit(pairs, s, ((s - 1) >> 1));
-    pair<double, pair<Point, Point>> cpy[N];
+    pair<double, pair<int, int>> cpy[N];
     int m = 0, midNum = 0;
 
     int i, j;
     partition(pairs, xMid, i, j, n);
     for (int p = 0; p < n; p++) {
-        if (pairs[p].first != xMid) {
+        if (pairs[p].first != xMid)
             cpy[m++] = pairs[p];
-        }
-        else {
+        else
             midNum++;
-        }
     }
     partition(cpy, xMid, i, j, m);
 
@@ -155,6 +157,18 @@ double getKthSplit(pair<double, pair<Point, Point>> pairs[], int n, int k) {
     if (leftNum > k) return getKthSplit(cpy, i, k);
     else if (leftNum + midNum > k) return xMid;
     else return getKthSplit(cpy + leftNum, rightNum, k - midNum - leftNum);
+}
+
+void chooseNearerPoint(const pair<Point, Point> pair, const Point ref, Point filter[], int &s) {
+    Point chosen;
+    if (length(pair.first - ref) > length(pair.second - ref))
+        chosen = pair.first;
+    else
+        chosen = pair.second;
+    if (s == 0 || (s > 0 && chosen != filter[0])) {
+        filter[s++] = chosen;
+    }
+
 }
 
 pair<double, double> constraintYCoordianteCenter(Point points[], int n, double y) {
@@ -169,33 +183,82 @@ pair<double, double> constraintYCoordianteCenter(Point points[], int n, double y
     }
 
     int pairCount = 0;
-    static pair<double, pair<Point, Point>> pairs[N];
+    static pair<double, pair<int, int>> pairs[N];
     for (int i = 0; i < n; i += 2) {
         int second = i + 1 == n ? 0 : i + 1;
         pair<Point, Point> cur = make_pair(points[i], points[second]);
-        pairs[pairCount] = make_pair(getPerpendicularBisectorIntersection(cur.first, cur.second, X_AXIS, y), cur);
+        pairs[pairCount++] =
+                make_pair(getPerpendicularBisectorIntersection(cur.first, cur.second, X_AXIS, y),
+                          make_pair(i, second));
     }
 
-    double xMid = getKthSplit(pairs, n, ((pairCount - 1) >> 1)), farDistance = 0;
-    Point pointMid = Point(xMid, y), furthest;
+    double xMid;
+    if (pairCount & 1) {
+        xMid = getKthSplit(pairs, pairCount, pairCount >> 1);
+    }
+    else {
+        double mid0 = getKthSplit(pairs, pairCount, (pairCount - 1) >> 1);
+        double mid1 = getKthSplit(pairs, pairCount, pairCount >> 1);
+        xMid = (mid0 + mid1) / 2;
+    }
+    double farDistance = 0;
+    Point pointMid = Point(xMid, y), farPoint;
     for (int i = 0; i < n; i++) {
         double len = length(points[i] - pointMid);
         if (farDistance < len) {
             farDistance = len;
-            furthest = points[i];
+            farPoint = points[i];
         }
     }
 
     static Point filter[N];
     int s = 0;
-    if (furthest.x > xMid) {
-        for (int i = 0; pairs[i].first < xMid; i++) {
-            Point
-            filter[s++] = pairs[i].second
+    if (farPoint.x > xMid) {
+        int i;
+        bool isDiscarded[N];
+        for (i = 0; i < pairCount && pairs[i].first < xMid; i++) {
+            pair<Point, Point> pair = make_pair(points[pairs[i].second.first], points[pairs[i].second.second]);
+            if (length(pair.first - pointMid) < length(pair.second - pointMid)) {
+                isDiscarded[pairs[i].second.first] = true;
+            }
+            else {
+                isDiscarded[pairs[i].second.second] = true;
+            }
         }
+        for (int i = 0; i < n; i++) if (!isDiscarded[i]) filter[s++] = points[i];
     }
+    else {
+        int i;
+        bool isDiscarded[N];
+        for (i = pairCount - 1; i >= 0 && pairs[i].first > xMid; i--) {
+            pair<Point, Point> pair = make_pair(points[pairs[i].second.first], points[pairs[i].second.second]);
+            if (length(pair.first - pointMid) < length(pair.second - pointMid)) {
+                isDiscarded[pairs[i].second.first] = true;
+            }
+            else {
+                isDiscarded[pairs[i].second.second] = true;
+            }
+        }
+        for (int i = 0; i < n; i++) if (!isDiscarded[i]) filter[s++] = points[i];
+    }
+
+    return constraintYCoordianteCenter(filter, s, y);
 }
 
 int main() {
-    printf("%.5f\n", getPerpendicularBisectorIntersection(Point(1, 2), Point(2, 3), X_AXIS, 0));
+#ifndef ONLINE_JUDGE
+    freopen("inputs/input.txt", "r", stdin);
+#endif
+
+    Point p[N];
+    int n;
+    double y;
+    scanf("%d%lf", &n, &y);
+    for (int i = 0; i < n; i++) {
+        scanf("%lf%lf", &p[i].x, &p[i].y);
+    }
+    pair<double, double> ans = constraintYCoordianteCenter(p, n, y);
+    printf("x = %.5f  r = %.5f\n", ans.first, ans.second);
+    return 0;
+//    printf("%.5f\n", getPerpendicularBisectorIntersection(Point(1, 2), Point(2, 3), X_AXIS, 0));
 }
