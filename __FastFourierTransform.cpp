@@ -71,7 +71,7 @@ void fft(Complex f[], int n, int rev) {
     butterfly(f, n);
     for (int len = 2; len <= n; len <<= 1) {
         Complex step = Complex(cos(2 * PI / len), sin(rev * 2 * PI / len));
-//        Complex step = exp(I * (2.0 * M_PI / len * rev));
+//        Complex step = exp(I * (2.0 * M_PI / length * rev));
         for (int j = 0; j < n; j += len) {
             Complex cur = Complex(1, 0);
             for (int k = j; k < j + (len >> 1); k++) {

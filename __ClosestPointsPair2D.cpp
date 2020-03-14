@@ -27,7 +27,7 @@ double cmp_y(Point a, Point b) {
 }
 
 void updateAnswer(const Point a, const Point b) {
-    double dist = sqrt(1.0 * (a.x - b.x) * (a.x - b.x) + 1.0 * (a.y - b.y) * (a.y - b.y) + .0);
+    double dist = sqrt(1.0 * (a.x - b.x) * (a.x - b.x) + 1.0 * (a.y - b.y) * (a.y - b.y));
 //    printf("%.5lf\n", dist);
     if (dist < ans) {
         ans = dist;
@@ -45,7 +45,7 @@ void findClosest(Point points[], int n) {
     }
 
     int k = (n >> 1);
-    int mid_x = points[k].x;
+    int xMid = points[k].x;
     findClosest(points, k);
     findClosest(points + k, n - k);
 
@@ -56,7 +56,7 @@ void findClosest(Point points[], int n) {
     int cur = 0;
     static Point legal[C];
     for (int i = 0; i < n; i++) {
-        if (abs(points[i].x - mid_x) < ans) {
+        if (abs(points[i].x - xMid) < ans) {
             for (int j = cur - 1; j >= 0; j--) {
                 if (points[i].y - legal[j].y > ans) break;
                 updateAnswer(points[i], legal[j]);
